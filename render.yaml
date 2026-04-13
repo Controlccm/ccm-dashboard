@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ccm-fleet-dashboard
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --timeout 120
+    envVars:
+      - key: DROPBOX_TOKEN
+        sync: false
+      - key: DROPBOX_PRESUPUESTO
+        value: /Presupuesto.xlsx
+      - key: DROPBOX_BASICA
+        value: /Nueva/BASICA 2026.xlsx
+      - key: REFRESH_MINUTES
+        value: 120
