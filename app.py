@@ -249,9 +249,10 @@ def force_refresh():
     return jsonify({'message': 'Actualización iniciada'})
 
 # ── Inicio ────────────────────────────────────────────────────
+# Arrancar scheduler al importar (funciona con gunicorn)
+_scheduler_thread = threading.Thread(target=scheduler, daemon=True)
+_scheduler_thread.start()
+
 if __name__ == '__main__':
-    # Arrancar scheduler en hilo separado
-    t = threading.Thread(target=scheduler, daemon=True)
-    t.start()
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
