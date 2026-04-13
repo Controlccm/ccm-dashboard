@@ -94,21 +94,44 @@ def process_excel(presupuesto_bytes, basica_bytes):
                 'impuestos':v(9),'soat':v(10),'rtmc':v(11),'avaluo':v(12),
                 'capital':v(13),'total':v(14),
             })
+    del df_p
+    log.info(f"Presupuesto: {len(presup_records)} registros")
 
-    # ── Hoja BASICA (BASICA 2026.xlsx → hoja "BASICA") ──
-    df_b = pd.read_excel(io.BytesIO(basica_bytes), sheet_name='BASICA', header=0)
-    df_b['mes_num']  = df_b['Mes'].str.lower().str.strip().map(MES_MAP)
-    df_b['placa']    = df_b['Centro de Costo'].apply(lambda x: str(x).strip().upper() if is_placa(x) else None)
-    df_b['cc_presup']= df_b['nombre Unidad de Negocio'].str.strip().str.upper().map(UN_TO_CC)
-    df_b['rubro']    = df_b.apply(lambda r: map_rubro(
+    # ── Hoja BASICA — solo columnas necesarias para ahorrar RAM ──
+    COLS_NEEDED = [
+        'Mes', 'Centro de Costo', 'Nombre Centro de Costo',
+        'nombre Unidad de Negocio', 'Nombre_cuenta_n1', 'Nombre_cuenta_n2',
+        'Nombre_cuenta_n3', 'Nombre_cuenta_n4', 'Nombre_auxiliar',
+        'Nombre Tercero', 'Notas', 'Movto_libro2'
+    ]
+
+    df_b = pd.read_excel(
+        io.BytesIO(basica_bytes), sheet_name='BASICA', header=0,
+        usecols=COLS_NEEDED, dtype={'Centro de Costo': str, 'Movto_libro2': float}
+    )
+    del basica_bytes  # liberar memoria del archivo crudo
+
+    df_b['mes_num']   = df_b['Mes'].str.lower().str.strip().map(MES_MAP)
+    df_b['placa']     = df_b['Centro de Costo'].apply(lambda x: str(x).strip().upper() if is_placa(x) else None)
+    df_b['cc_presup'] = df_b['nombre Unidad de Negocio'].str.strip().str.upper().map(UN_TO_CC)
+    df_b['rubro']     = df_b.apply(lambda r: map_rubro(
         r['Nombre_cuenta_n1'], r['Nombre_cuenta_n2'],
         r['Nombre_cuenta_n3'], r.get('Nombre_cuenta_n4','')), axis=1)
 
     real = df_b[
         df_b['placa'].notna() & df_b['rubro'].notna() &
         df_b['mes_num'].notna() & df_b['cc_presup'].notna() &
-        (df_b['Movto_libro2'] != 0)
+        (df_b['Movto_libro2'].fillna(0) != 0)
     ].copy()
+
+    del df_b  # liberar dataframe completo
+    log.info(f"BASICA filtrada: {len(real)} filas útiles")
+    df_b['mes_num']  = df_b['Mes'].str.lower().str.strip().map(MES_MAP)
+    df_b['placa']    = df_b['Centro de Costo'].apply(lambda x: str(x).strip().upper() if is_placa(x) else None)
+    df_b['cc_presup']= df_b['nombre Unidad de Negocio'].str.strip().str.upper().map(UN_TO_CC)
+    df_b['rubro']    = df_b.apply(lambda r: map_rubro(
+        r['Nombre_cuenta_n1'], r['Nombre_cuenta_n2'],
+        r['Nombre_cuenta_n3'], r.get('Nombre_cuenta_n4','')), axis=1)
 
     # Pivot real por placa+mes
     pivoted = {}
@@ -252,6 +275,7 @@ def force_refresh():
 # Arrancar scheduler al importar (funciona con gunicorn)
 _scheduler_thread = threading.Thread(target=scheduler, daemon=True)
 _scheduler_thread.start()
+log.info("Scheduler iniciado — primera descarga en progreso...")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
