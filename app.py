@@ -25,9 +25,20 @@ MES_MAP = {'enero':1,'febrero':2,'marzo':3,'abril':4,'mayo':5,'junio':6,
            'julio':7,'agosto':8,'septiembre':9,'octubre':10,'noviembre':11,'diciembre':12}
 
 UN_TO_CC = {
-    'ADMINISTRACION':'ADMINISTRATIVO','ADMINISTRACIÓN':'ADMINISTRATIVO','ADMON':'ADMINISTRATIVO',
-    'CHILCO':'CHILCO','COPSERVIR':'COOPSERVIR','MULAS PROPIAS':'MULAS PROPIAS',
-    'OXIGENOS':'PRAXAIR','OXÍGENOS':'PRAXAIR',
+    'ADMINISTRACION':                   'ADMINISTRATIVO',
+    'ADMINISTRACIÓN':                   'ADMINISTRATIVO',
+    'ADMON':                            'ADMINISTRATIVO',
+    'CHILCO':                           'CHILCO',
+    'COPSERVIR':                        'COOPSERVIR',
+    'MULAS PROPIAS':                    'MULAS PROPIAS',
+    'OXIGENOS':                         'PRAXAIR',
+    'OXÍGENOS':                         'PRAXAIR',
+    'TRANSFERENCIAS OXIGENOS':          'PRAXAIR',
+    'CARGA':                            'CARGA',
+    'BIG COLA':                         'BIG COLA',
+    'INTERNACIONAL':                    'INTERNACIONAL',
+    'SERVICIO DE TRANSPORTE OPERATIVO': 'SERVICIO DE TRANSPORTE OPERATIVO',
+    'LIQUIDOS':                         'LIQUIDOS',
 }
 
 RUBROS     = ['venta_real','nomina','combustible','mtto','gastos_admi','bo','polizas','soat','rtmc','impuestos','capital']
@@ -97,41 +108,76 @@ def process_excel(presupuesto_bytes, basica_bytes):
     del df_p
     log.info(f"Presupuesto: {len(presup_records)} registros")
 
-    # ── Hoja BASICA — solo columnas necesarias para ahorrar RAM ──
+    # ── Hoja BASICA (BASICA 2026.xlsx → hoja "BASICA") ──
+    # Solo las columnas necesarias para el dashboard
     COLS_NEEDED = [
-        'Mes', 'Centro de Costo', 'Nombre Centro de Costo',
-        'nombre Unidad de Negocio', 'Nombre_cuenta_n1', 'Nombre_cuenta_n2',
-        'Nombre_cuenta_n3', 'Nombre_cuenta_n4', 'Nombre_auxiliar',
-        'Nombre Tercero', 'Notas', 'Movto_libro2'
+        'Periodo',
+        'nombre Unidad de Negocio',
+        'Cuenta_n2',
+        'Nombre_cuenta_n1',
+        'Nombre_cuenta_n2',
+        'Nombre_cuenta_n3',
+        'Nombre_cuenta_n4',
+        'Nombre_auxiliar',
+        'Centro de Costo',
+        'Nombre Centro de Costo',
+        'Nombre Tercero',
+        'Notas',
+        'Movto_libro2'
     ]
+
+    # Cuentas N2 a incluir
+    CUENTAS_N2 = {41, 42, 52, 53, 54, 61, 71, 72, 73, 74}
+
+    # Unidades de negocio a incluir
+    UNIDADES = {
+        'CHILCO', 'INTERNACIONAL', 'OXIGENOS', 'CARGA', 'ADMINISTRACION',
+        'BIG COLA', 'COPSERVIR', 'MULAS PROPIAS',
+        'SERVICIO DE TRANSPORTE OPERATIVO', 'TRANSFERENCIAS OXIGENOS', 'LIQUIDOS'
+    }
 
     df_b = pd.read_excel(
         io.BytesIO(basica_bytes), sheet_name='BASICA', header=0,
-        usecols=COLS_NEEDED, dtype={'Centro de Costo': str, 'Movto_libro2': float}
+        usecols=COLS_NEEDED,
+        dtype={'Centro de Costo': str, 'Movto_libro2': float, 'Cuenta_n2': float}
     )
-    del basica_bytes  # liberar memoria del archivo crudo
+    del basica_bytes
 
-    df_b['mes_num']   = df_b['Mes'].str.lower().str.strip().map(MES_MAP)
-    df_b['placa']     = df_b['Centro de Costo'].apply(lambda x: str(x).strip().upper() if is_placa(x) else None)
-    df_b['cc_presup'] = df_b['nombre Unidad de Negocio'].str.strip().str.upper().map(UN_TO_CC)
-    df_b['rubro']     = df_b.apply(lambda r: map_rubro(
+    # Filtro 1: Solo periodos 2026 — extraer año y mes
+    df_b['periodo_str'] = df_b['Periodo'].astype(str).str.strip()
+    df_b = df_b[df_b['periodo_str'].str.startswith('2026')]
+    df_b['mes_num'] = df_b['periodo_str'].str[4:].astype(int)
+
+    # Filtro 2: Cuentas N2
+    df_b = df_b[df_b['Cuenta_n2'].isin(CUENTAS_N2)]
+
+    # Filtro 3: Unidades de negocio
+    df_b['un_upper'] = df_b['nombre Unidad de Negocio'].str.strip().str.upper()
+    df_b = df_b[df_b['un_upper'].isin(UNIDADES)]
+
+    # Filtro 4: Movimiento != 0
+    df_b = df_b[df_b['Movto_libro2'].fillna(0) != 0]
+
+    # Mapeo Unidad de Negocio → CC presupuesto
+    df_b['cc_presup'] = df_b['un_upper'].map(UN_TO_CC)
+
+    # Placa desde Centro de Costo
+    df_b['placa'] = df_b['Centro de Costo'].apply(
+        lambda x: str(x).strip().upper() if is_placa(x) else None
+    )
+
+    # Mapeo de rubro
+    df_b['rubro'] = df_b.apply(lambda r: map_rubro(
         r['Nombre_cuenta_n1'], r['Nombre_cuenta_n2'],
-        r['Nombre_cuenta_n3'], r.get('Nombre_cuenta_n4','')), axis=1)
+        r['Nombre_cuenta_n3'], r.get('Nombre_cuenta_n4', '')
+    ), axis=1)
 
     real = df_b[
         df_b['placa'].notna() & df_b['rubro'].notna() &
-        df_b['mes_num'].notna() & df_b['cc_presup'].notna() &
-        (df_b['Movto_libro2'].fillna(0) != 0)
+        df_b['cc_presup'].notna()
     ].copy()
-
-    del df_b  # liberar dataframe completo
+    del df_b
     log.info(f"BASICA filtrada: {len(real)} filas útiles")
-    df_b['mes_num']  = df_b['Mes'].str.lower().str.strip().map(MES_MAP)
-    df_b['placa']    = df_b['Centro de Costo'].apply(lambda x: str(x).strip().upper() if is_placa(x) else None)
-    df_b['cc_presup']= df_b['nombre Unidad de Negocio'].str.strip().str.upper().map(UN_TO_CC)
-    df_b['rubro']    = df_b.apply(lambda r: map_rubro(
-        r['Nombre_cuenta_n1'], r['Nombre_cuenta_n2'],
-        r['Nombre_cuenta_n3'], r.get('Nombre_cuenta_n4','')), axis=1)
 
     # Pivot real por placa+mes
     pivoted = {}
@@ -280,3 +326,4 @@ log.info("Scheduler iniciado — primera descarga en progreso...")
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
