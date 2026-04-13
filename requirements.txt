@@ -1,7 +1,8 @@
 flask==2.3.3
 flask-cors==4.0.0
 dropbox==11.36.2
-pandas==2.0.3
+pandas==2.1.4
 openpyxl==3.1.2
 gunicorn==21.2.0
 Werkzeug==2.3.7
+setuptools==68.2.2
