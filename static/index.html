@@ -441,29 +441,45 @@ let RAW = [], REAL = [], TREE = {}, MESES_REALES = [1,2,3,4];
 
 async function loadData(){
   const loader = document.getElementById('api-loader');
-  const app    = document.getElementById('app');
-  try {
-    const res  = await fetch('/api/data');
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data = await res.json();
-    if(data.error) throw new Error(data.error);
-    RAW          = data.presupuesto  || [];
-    REAL         = data.real         || [];
-    TREE         = data.tree         || {};
-    MESES_REALES = data.meses_reales || [1,2,3,4];
-    // Actualizar badge última actualización
-    if(data.last_update){
-      const d = new Date(data.last_update);
-      const label = d.toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'});
-      const el = document.getElementById('last-update-badge');
-      if(el) el.textContent = 'Actualizado: ' + label;
+  const maxIntentos = 10;
+  const espera = 6000; // 6 segundos entre intentos
+
+  for(let intento=1; intento<=maxIntentos; intento++){
+    try {
+      if(loader) loader.innerHTML =
+        '<div style="width:44px;height:44px;border:4px solid #e2e6ef;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite"></div>' +
+        '<div style="font-size:13px;color:#64748b;font-family:Nunito,sans-serif">Cargando datos... (intento '+intento+' de '+maxIntentos+')</div>' +
+        '<div style="font-size:11px;color:#94a3b8">El servidor puede tardar hasta 60 segundos en despertar</div>';
+
+      const res  = await fetch('/api/data');
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const data = await res.json();
+      if(data.error) throw new Error(data.error);
+
+      RAW          = data.presupuesto  || [];
+      REAL         = data.real         || [];
+      TREE         = data.tree         || {};
+      MESES_REALES = data.meses_reales || [1,2,3,4];
+
+      if(data.last_update){
+        const d = new Date(data.last_update);
+        const label = d.toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'});
+        const el = document.getElementById('last-update-badge');
+        if(el) el.textContent = 'Actualizado: ' + label;
+      }
+      if(loader) loader.style.display='none';
+      return true;
+    } catch(e){
+      console.warn('Intento '+intento+' fallido:', e.message);
+      if(intento < maxIntentos){
+        await new Promise(r=>setTimeout(r, espera));
+      } else {
+        if(loader) loader.innerHTML =
+          '<div style="color:#dc2626;font-size:13px">⚠️ No se pudo conectar al servidor.<br>' +
+          '<button onclick="loadData()" style="margin-top:8px;padding:6px 14px;border-radius:8px;border:1px solid #dc2626;background:#fef2f2;color:#dc2626;cursor:pointer">Reintentar</button></div>';
+        return false;
+      }
     }
-    if(loader) loader.style.display='none';
-    return true;
-  } catch(e){
-    if(loader) loader.innerHTML = '<div style="color:#dc2626;font-size:13px">⚠️ Error cargando datos: '+e.message+'<br><button onclick="loadData()" style="margin-top:8px;padding:6px 14px;border-radius:8px;border:1px solid #dc2626;background:#fef2f2;color:#dc2626;cursor:pointer">Reintentar</button></div>';
-    console.error('Error cargando API:', e);
-    return false;
   }
 }
 </script>
