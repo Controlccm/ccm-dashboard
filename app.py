@@ -10,11 +10,10 @@ log = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
-# Refresh token permanente
-APP_KEY       = os.environ.get('DROPBOX_APP_KEY',    'i3qh1or39zreiih')
-APP_SECRET    = os.environ.get('DROPBOX_APP_SECRET', 'tzqnzdw1xvwwnwg')
-REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', 'Mw3nLe4E1ZAAAAAAAAAAAWCfuMfV4AJ1UKeDYqG-PZVaECCevTnagcdzWdQcrXik')
-DROPBOX_JSON    = os.environ.get('DROPBOX_JSON', '/ccm_data.json')
+APP_KEY       = os.environ.get('DROPBOX_APP_KEY',       'i3qh1or39zreiih')
+APP_SECRET    = os.environ.get('DROPBOX_APP_SECRET',    'tzqnzdw1xvwwnwg')
+REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', 'hQTVhFF7Oa4AAAAAAAAAAWPGkeIttW-BgqwmcC3QF_9vw7q8vcDk1h1SlqDiA1-5')
+DROPBOX_JSON    = os.environ.get('DROPBOX_JSON',    '/ccm_data.json')
 REFRESH_MINUTES = int(os.environ.get('REFRESH_MINUTES', '30'))
 
 _cache = {'data': None, 'last_update': None, 'error': None}
@@ -36,17 +35,24 @@ def download_json():
         _cache['data']        = data
         _cache['last_update'] = datetime.now().isoformat()
         _cache['error']       = None
-        log.info(f"JSON OK — {len(res.content)/1024:.0f} KB, "
-                 f"{len(data.get('presupuesto',[]))} presup, "
-                 f"{len(data.get('real',[]))} real")
+        log.info(f"JSON OK — {len(res.content)/1024:.0f} KB")
     except Exception as e:
         _cache['error'] = str(e)
         log.error(f"Error: {e}")
 
 def scheduler():
+    """Scheduler que usa sleep corto para no bloquear gunicorn."""
+    interval = REFRESH_MINUTES * 60
+    elapsed  = interval  # arrancar descarga inmediatamente
     while True:
-        download_json()
-        time.sleep(REFRESH_MINUTES * 60)
+        if elapsed >= interval:
+            elapsed = 0
+            try:
+                download_json()
+            except Exception as e:
+                log.error(f"Scheduler error: {e}")
+        time.sleep(10)
+        elapsed += 10
 
 @app.route('/')
 def index():
@@ -61,9 +67,9 @@ def get_data():
 @app.route('/api/status')
 def status():
     return jsonify({
-        'ok': _cache['data'] is not None,
-        'last_update': _cache['last_update'],
-        'error': _cache['error'],
+        'ok':            _cache['data'] is not None,
+        'last_update':   _cache['last_update'],
+        'error':         _cache['error'],
         'refresh_every': f'{REFRESH_MINUTES} minutos',
     })
 
@@ -72,6 +78,7 @@ def force_refresh():
     threading.Thread(target=download_json, daemon=True).start()
     return jsonify({'message': 'Actualizacion iniciada'})
 
+# Arrancar scheduler en hilo daemon
 _t = threading.Thread(target=scheduler, daemon=True)
 _t.start()
 log.info("Scheduler iniciado")
