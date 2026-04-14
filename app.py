@@ -1,4 +1,4 @@
-import os, io, json, time, threading, logging
+import os, json, time, threading, logging
 from datetime import datetime
 import dropbox
 from flask import Flask, jsonify, send_from_directory
@@ -10,23 +10,35 @@ log = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
-DROPBOX_TOKEN   = os.environ.get('DROPBOX_TOKEN', '')
+# Refresh token permanente
+APP_KEY       = os.environ.get('DROPBOX_APP_KEY',    'i3qh1or39zreiih')
+APP_SECRET    = os.environ.get('DROPBOX_APP_SECRET', 'tzqnzdw1xvwwnwg')
+REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', 'Mw3nLe4E1ZAAAAAAAAAAAWCfuMfV4AJ1UKeDYqG-PZVaECCevTnagcdzWdQcrXik')
 DROPBOX_JSON    = os.environ.get('DROPBOX_JSON', '/ccm_data.json')
 REFRESH_MINUTES = int(os.environ.get('REFRESH_MINUTES', '30'))
 
 _cache = {'data': None, 'last_update': None, 'error': None}
 
+def get_dbx():
+    return dropbox.Dropbox(
+        oauth2_refresh_token=REFRESH_TOKEN,
+        app_key=APP_KEY,
+        app_secret=APP_SECRET
+    )
+
 def download_json():
     global _cache
     try:
         log.info(f"Descargando JSON: {DROPBOX_JSON}")
-        dbx = dropbox.Dropbox(DROPBOX_TOKEN)
+        dbx = get_dbx()
         _, res = dbx.files_download(DROPBOX_JSON)
         data = json.loads(res.content.decode('utf-8'))
         _cache['data']        = data
         _cache['last_update'] = datetime.now().isoformat()
         _cache['error']       = None
-        log.info(f"JSON OK — {len(res.content)/1024:.0f} KB")
+        log.info(f"JSON OK — {len(res.content)/1024:.0f} KB, "
+                 f"{len(data.get('presupuesto',[]))} presup, "
+                 f"{len(data.get('real',[]))} real")
     except Exception as e:
         _cache['error'] = str(e)
         log.error(f"Error: {e}")
