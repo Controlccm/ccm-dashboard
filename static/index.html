@@ -444,6 +444,36 @@ table.vt tr.tot-vrow td{background:var(--blue-l)!important;color:var(--blue)!imp
         </div>
       </div>
     </div>
+
+    <!-- SECCIÓN VIAJES CLOUDFLEET -->
+    <div style="margin-top:20px" id="viajes-section">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">Viajes CloudFleet</div>
+        <div style="font-size:9px;padding:3px 9px;border-radius:20px;background:#f0fdf4;color:#16a34a;font-weight:700;border:1px solid #bbf7d0" id="viajes-periodo-badge">Cargando...</div>
+        <div style="font-size:9px;padding:3px 9px;border-radius:20px;background:var(--blue-l);color:var(--blue);font-weight:700" id="viajes-count-badge">— viajes</div>
+        <div style="font-size:9px;color:var(--text3)">Solo PRAXAIR (LINDE) y CHILCO</div>
+      </div>
+      <div class="viajes-kpi-grid" id="viajes-kpis"></div>
+      <div class="viajes-mid">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Vehículos</span>
+            <span class="panel-action" id="btn-all-veh-viajes" onclick="clearVehViajes()" style="display:none">Ver todos</span>
+          </div>
+          <div class="veh-scroll" id="viajes-veh-strip"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title" id="viajes-tabla-titulo">Detalle por vehículo y mes</span>
+            <span style="font-size:9px;color:var(--text3)">Clic en fila para ver gastos</span>
+          </div>
+          <div class="viajes-table-wrap">
+            <table class="vt" id="viajes-tabla"></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 <!-- CASCADA DRILL-DOWN -->
