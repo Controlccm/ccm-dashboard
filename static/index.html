@@ -200,6 +200,38 @@ table.st td.active-col-cell.rl{background:var(--blue-l)!important}
 .cascade-btn{font-size:10px;padding:3px 9px;border-radius:8px;border:1px solid var(--blue-m);background:var(--blue-l);color:var(--blue);cursor:pointer;font-weight:600;white-space:nowrap}
 .cascade-btn:hover{background:var(--blue);color:#fff}
 
+
+/* ─── VIAJES ─── */
+.viajes-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.vkc{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:16px;border-left:4px solid var(--blue)}
+.vkc-label{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
+.vkc-val{font-size:22px;font-weight:800;color:var(--text);line-height:1;margin-bottom:3px}
+.vkc-sub{font-size:10px;color:var(--text2)}
+.vkc-bar-track{height:3px;background:var(--border);border-radius:2px;margin-top:8px}
+.vkc-bar-fill{height:3px;border-radius:2px;transition:width .4s}
+.viajes-mid{display:grid;grid-template-columns:220px 1fr;gap:14px;margin-bottom:14px}
+.viajes-table-wrap{overflow-x:auto;max-height:280px;overflow-y:auto}
+.viajes-table-wrap::-webkit-scrollbar{width:4px;height:4px}.viajes-table-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+table.vt{border-collapse:collapse;font-size:10px;white-space:nowrap;width:100%}
+table.vt thead{position:sticky;top:0;z-index:2}
+table.vt th{background:#f8fafc;padding:7px 12px;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border);border-right:1px solid var(--border);text-align:right;font-size:9px}
+table.vt th.rh{text-align:left;min-width:80px}
+table.vt td{padding:6px 12px;border-bottom:1px solid #f0f4f8;border-right:1px solid #f0f4f8;text-align:right;font-weight:600}
+table.vt td.rl{text-align:left;cursor:pointer;background:#fff;position:sticky;left:0;border-right:2px solid var(--border)}
+table.vt td.rl:hover{color:var(--blue)}
+table.vt tr.active-vrow td{background:rgba(37,99,235,.05)!important}
+table.vt tr.tot-vrow td{background:var(--blue-l)!important;color:var(--blue)!important;font-weight:800!important}
+/* Cascada viajes */
+.viajesCasc{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:8px}
+.viajesCasc-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:8px}
+.vcrow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid var(--border)}
+.vcrow:last-child{border:none}
+.vcrow-label{font-size:10px;color:var(--text2);flex:1}
+.vcrow-bar{width:80px;height:4px;background:var(--border);border-radius:2px;flex-shrink:0}
+.vcrow-fill{height:4px;border-radius:2px}
+.vcrow-val{font-size:10px;font-weight:700;color:var(--text);min-width:70px;text-align:right}
+.vcrow-pct{font-size:9px;color:var(--text3);min-width:32px;text-align:right}
+
 </style>
 </head>
 <body>
@@ -437,7 +469,7 @@ table.st td.active-col-cell.rl{background:var(--blue-l)!important}
 
 <script>
 // ─── API LOADER ───
-let RAW = [], REAL = [], TREE = {}, MESES_REALES = [1,2,3,4];
+let RAW = [], REAL = [], TREE = {}, MESES_REALES = [1,2,3,4], VIAJES = [];
 
 async function loadData(){
   const loader = document.getElementById('api-loader');
@@ -460,6 +492,8 @@ async function loadData(){
       REAL         = data.real         || [];
       TREE         = data.tree         || {};
       MESES_REALES = data.meses_reales || [1,2,3,4];
+      VIAJES       = data.viajes       || [];
+      poblarCentros();
 
       if(data.last_update){
         const d = new Date(data.last_update);
@@ -499,9 +533,24 @@ let selVeh=null;
 let selRub=null;
 let lineChart=null, donutChart=null;
 
-const CCS=[...new Set(RAW.map(r=>r.cc))].filter(c=>c&&c!='SIN CC'&&c!='nan').sort();
+// CCS se pobla dinámicamente después de cargar los datos via API
 const scc=document.getElementById('scc');
-CCS.forEach(cc=>{const o=document.createElement('option');o.value=cc;o.textContent=cc;scc.appendChild(o);});
+
+function poblarCentros(){
+  const CCS=[...new Set(RAW.map(r=>r.cc))].filter(c=>c&&c!='SIN CC'&&c!='nan').sort();
+  // Guardar selección actual
+  const selActual = scc.value;
+  // Limpiar opciones excepto "Todos"
+  while(scc.options.length > 1) scc.remove(1);
+  // Agregar centros
+  CCS.forEach(cc=>{
+    const o=document.createElement('option');
+    o.value=cc; o.textContent=cc;
+    scc.appendChild(o);
+  });
+  // Restaurar selección si sigue disponible
+  if(selActual) scc.value=selActual;
+}
 
 function canSee(c){
   if(role==='gerencia') return true;
@@ -587,6 +636,7 @@ function render(){
   renderLine();
   renderPivot(rows);
   renderComparison();
+  renderViajes();
 }
 
 // ─── KPI CARDS ───
@@ -1421,6 +1471,211 @@ function kpiMini(label, color, val){
 function closeCascade(event){
   if(event && event.target !== document.getElementById('cascade-overlay')) return;
   document.getElementById('cascade-overlay').classList.remove('open');
+}
+
+
+// ─── VIAJES CLOUDFLEET ───
+let selVehViajes = null;
+let selMesViajes = null;
+
+const GASTOS_LABELS = {
+  'ALIMENTACION':'Alimentación','HOSPEDAJE':'Hospedaje',
+  'MONTALLANTAS':'Montallantas','OTROS GASTOS':'Otros gastos',
+  'PARQUEOS':'Parqueos','PEAJE AUTOMATICO':'Peaje automático',
+  'PROPINAS':'Propinas','SUMINISTRO INSUMOS':'Suministro insumos',
+  'TAXIS Y BUSES':'Taxis y buses','VISITAS SEGURIDAD':'Visitas seguridad'
+};
+
+const GASTOS_COLORS = ['#2563eb','#16a34a','#d97706','#ea580c','#0891b2',
+                       '#7c3aed','#059669','#ca8a04','#dc2626','#06b6d4'];
+
+function filteredViajes(){
+  const cc = document.getElementById('scc').value;
+  const mes = selMonths();
+  let r = VIAJES.slice();
+  if(cc) r = r.filter(v => v.cc === cc);
+  if(mes.length > 0 && mes.length < 12) r = r.filter(v => mes.includes(v.mes));
+  if(selVehViajes) r = r.filter(v => v.placa === selVehViajes);
+  return r;
+}
+
+function renderViajes(){
+  if(!VIAJES || VIAJES.length === 0) return;
+  const rows = filteredViajes();
+  const meses = selMonths();
+
+  // Badge período
+  const mesesLabel = meses.length===12?'Año completo':meses.map(m=>['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m]).join('–');
+  const el = document.getElementById('viajes-periodo-badge');
+  if(el) el.textContent = mesesLabel + ' 2026';
+  const el2 = document.getElementById('viajes-count-badge');
+  if(el2) el2.textContent = rows.reduce((s,r)=>s+(r.num_viajes||0),0).toLocaleString() + ' viajes';
+
+  // KPIs
+  const totKmCobrar  = rows.reduce((s,r)=>s+(r.km_cobrar||0),0);
+  const totKmReales  = rows.reduce((s,r)=>s+(r.km_reales||0),0);
+  const totGastos    = rows.reduce((s,r)=>s+(r.gastos_viaje||0),0);
+  const totViajes    = rows.reduce((s,r)=>s+(r.num_viajes||0),0);
+  const pctKm        = totKmCobrar>0?(totKmReales/totKmCobrar*100).toFixed(1):0;
+
+  const kpiColors = ['#16a34a','#2563eb','#d97706','#7c3aed'];
+  const kpis = [
+    {label:'Km a cobrar',    val:Math.round(totKmCobrar).toLocaleString(), sub:'Suma Medición Recorrida', pct:100,    color:kpiColors[0]},
+    {label:'Km reales',      val:Math.round(totKmReales).toLocaleString(), sub:`${pctKm}% vs km cobrar`,  pct:parseFloat(pctKm), color:kpiColors[1]},
+    {label:'Gastos de viaje',val:fmt(totGastos),                           sub:'10 conceptos sumados',    pct:Math.min(totGastos/totKmCobrar*100||0,100), color:kpiColors[2]},
+    {label:'Total viajes',   val:totViajes.toLocaleString(),               sub:'PRAXAIR + CHILCO',         pct:75,     color:kpiColors[3]},
+  ];
+
+  document.getElementById('viajes-kpis').innerHTML = kpis.map(k=>`
+    <div class="vkc" style="border-left-color:${k.color}">
+      <div class="vkc-label">${k.label}</div>
+      <div class="vkc-val">${k.val}</div>
+      <div class="vkc-sub">${k.sub}</div>
+      <div class="vkc-bar-track"><div class="vkc-bar-fill" style="width:${Math.min(k.pct,100)}%;background:${k.color}"></div></div>
+    </div>`).join('');
+
+  // Lista vehículos
+  renderViajesVehStrip(rows);
+
+  // Tabla
+  renderViajesTabla(rows);
+}
+
+function renderViajesVehStrip(rows){
+  const byVeh = {};
+  rows.forEach(r=>{
+    if(!byVeh[r.placa]) byVeh[r.placa]={total_km:0,total_gastos:0,cc:r.cc};
+    byVeh[r.placa].total_km += (r.km_cobrar||0);
+    byVeh[r.placa].total_gastos += (r.gastos_viaje||0);
+  });
+  const sorted = Object.entries(byVeh).sort((a,b)=>b[1].total_gastos-a[1].total_gastos);
+  const maxG = Math.max(...sorted.map(e=>e[1].total_gastos))||1;
+
+  document.getElementById('viajes-veh-strip').innerHTML = sorted.map(([p,v])=>`
+    <div class="vcard${selVehViajes===p?' active':''}" onclick="toggleVehViajes('${p}')">
+      <div class="vp">${p}</div>
+      <div class="vbar-wrap"><div class="vbar-fill" style="width:${Math.round(v.total_gastos/maxG*100)}%;background:#16a34a"></div></div>
+      <div class="vt">${fmt(v.total_gastos)}</div>
+    </div>`).join('');
+
+  document.getElementById('btn-all-veh-viajes').style.display = selVehViajes?'inline-block':'none';
+}
+
+function renderViajesTabla(rows){
+  // Agrupar por placa+mes
+  const byKey = {};
+  rows.forEach(r=>{
+    const key = r.placa+'|'+r.mes;
+    if(!byKey[key]) byKey[key] = {placa:r.placa, mes:r.mes, cc:r.cc,
+      km_cobrar:0, km_reales:0, gastos_viaje:0, num_viajes:0, gastos_detalle:{}};
+    byKey[key].km_cobrar    += (r.km_cobrar||0);
+    byKey[key].km_reales    += (r.km_reales||0);
+    byKey[key].gastos_viaje += (r.gastos_viaje||0);
+    byKey[key].num_viajes   += (r.num_viajes||0);
+    // Gastos detalle
+    Object.keys(GASTOS_LABELS).forEach(g=>{
+      if(r[g]) byKey[key].gastos_detalle[g] = (byKey[key].gastos_detalle[g]||0)+(r[g]||0);
+    });
+  });
+
+  const items = Object.values(byKey).sort((a,b)=>a.placa.localeCompare(b.placa)||a.mes-b.mes);
+  const MN2=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  // Totales
+  const totKmC = items.reduce((s,r)=>s+(r.km_cobrar||0),0);
+  const totKmR = items.reduce((s,r)=>s+(r.km_reales||0),0);
+  const totG   = items.reduce((s,r)=>s+(r.gastos_viaje||0),0);
+  const totV   = items.reduce((s,r)=>s+(r.num_viajes||0),0);
+
+  let html='<thead><tr>';
+  html+='<th class="rh">Vehículo</th>';
+  html+='<th style="text-align:right">Mes</th>';
+  html+='<th style="color:#16a34a;text-align:right">Km cobrar</th>';
+  html+='<th style="color:#2563eb;text-align:right">Km reales</th>';
+  html+='<th style="text-align:right">Viajes</th>';
+  html+='<th style="color:#d97706;text-align:right">Gastos viaje</th>';
+  html+='</tr></thead><tbody>';
+
+  items.forEach((r,i)=>{
+    const rowKey = r.placa+'|'+r.mes;
+    html+=`<tr onclick="toggleViajesCascada('${rowKey}',${i})" style="cursor:pointer" id="vrow-${i}">`;
+    html+=`<td class="rl">${r.placa}</td>`;
+    html+=`<td>${MN2[r.mes]}</td>`;
+    html+=`<td style="color:#16a34a">${Math.round(r.km_cobrar).toLocaleString()}</td>`;
+    html+=`<td style="color:#2563eb">${Math.round(r.km_reales).toLocaleString()}</td>`;
+    html+=`<td>${r.num_viajes}</td>`;
+    html+=`<td style="color:#d97706">${fmt(r.gastos_viaje)}</td>`;
+    html+='</tr>';
+    html+=`<tr id="vcasc-${i}" style="display:none"><td colspan="6" style="padding:0 8px 8px 24px;background:var(--bg)"><div class="viajesCasc" id="vcasc-body-${i}"></div></td></tr>`;
+  });
+
+  html+=`<tr class="tot-vrow">
+    <td class="rl">TOTAL</td><td></td>
+    <td>${Math.round(totKmC).toLocaleString()}</td>
+    <td>${Math.round(totKmR).toLocaleString()}</td>
+    <td>${totV}</td>
+    <td>${fmt(totG)}</td>
+  </tr></tbody>`;
+
+  document.getElementById('viajes-tabla').innerHTML = html;
+  // Guardar datos para cascada
+  window._viajesItems = items;
+}
+
+let _viajesCascActiva = null;
+function toggleViajesCascada(rowKey, idx){
+  const casc = document.getElementById('vcasc-'+idx);
+  if(!casc) return;
+  const isOpen = casc.style.display !== 'none';
+
+  // Cerrar todas
+  document.querySelectorAll('[id^="vcasc-"]').forEach(el=>el.style.display='none');
+  document.querySelectorAll('[id^="vrow-"]').forEach(el=>el.style.background='');
+
+  if(isOpen) return;
+
+  // Abrir esta
+  casc.style.display='';
+  document.getElementById('vrow-'+idx).style.background='rgba(37,99,235,.05)';
+
+  const item = window._viajesItems && window._viajesItems[idx];
+  if(!item) return;
+
+  const MN2=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const gastos = item.gastos_detalle || {};
+  const totalG = Object.values(gastos).reduce((s,v)=>s+v,0)||1;
+  const sorted = Object.entries(gastos).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxG   = sorted.length>0?sorted[0][1]:1;
+
+  let body = `<div class="viajesCasc-title">Gastos · ${item.placa} · ${MN2[item.mes]}</div>`;
+  sorted.forEach(([key,val],i)=>{
+    const pct = Math.round(val/maxG*100);
+    const pctTotal = ((val/totalG)*100).toFixed(1);
+    const color = GASTOS_COLORS[i%GASTOS_COLORS.length];
+    body += `<div class="vcrow">
+      <span class="vcrow-label">${GASTOS_LABELS[key]||key}</span>
+      <div class="vcrow-bar"><div class="vcrow-fill" style="width:${pct}%;background:${color}"></div></div>
+      <span class="vcrow-pct">${pctTotal}%</span>
+      <span class="vcrow-val">${fmt(val)}</span>
+    </div>`;
+  });
+  if(sorted.length===0) body+='<div style="font-size:10px;color:var(--text3);padding:8px 0">Sin detalle de gastos disponible</div>';
+  body+=`<div class="vcrow" style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">
+    <span class="vcrow-label" style="font-weight:700;color:var(--blue)">Total gastos</span>
+    <div class="vcrow-bar"></div><span class="vcrow-pct"></span>
+    <span class="vcrow-val" style="color:var(--blue);font-weight:700">${fmt(totalG)}</span>
+  </div>`;
+
+  document.getElementById('vcasc-body-'+idx).innerHTML = body;
+}
+
+function toggleVehViajes(p){
+  selVehViajes = selVehViajes===p ? null : p;
+  renderViajes();
+}
+function clearVehViajes(){
+  selVehViajes = null;
+  renderViajes();
 }
 
 </script>
