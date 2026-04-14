@@ -35,24 +35,26 @@ def download_json():
         _cache['data']        = data
         _cache['last_update'] = datetime.now().isoformat()
         _cache['error']       = None
-        log.info(f"JSON OK — {len(res.content)/1024:.0f} KB")
+        n_presup = len(data.get('presupuesto', []))
+        n_real   = len(data.get('real', []))
+        log.info(f"Cache actualizado — {n_presup} presup, {n_real} real")
     except Exception as e:
         _cache['error'] = str(e)
-        log.error(f"Error: {e}")
+        log.error(f"Error descargando JSON: {e}")
 
 def scheduler():
-    """Scheduler que usa sleep corto para no bloquear gunicorn."""
-    interval = REFRESH_MINUTES * 60
-    elapsed  = interval  # arrancar descarga inmediatamente
     while True:
-        if elapsed >= interval:
-            elapsed = 0
-            try:
-                download_json()
-            except Exception as e:
-                log.error(f"Scheduler error: {e}")
-        time.sleep(10)
-        elapsed += 10
+        time.sleep(REFRESH_MINUTES * 60)
+        download_json()
+
+# ── Descarga inicial SINCRONA antes de arrancar ──────────────
+log.info("Carga inicial...")
+download_json()
+log.info(f"Cache listo: {_cache['data'] is not None}, error: {_cache['error']}")
+
+# Scheduler en background para refrescar periódicamente
+_t = threading.Thread(target=scheduler, daemon=True)
+_t.start()
 
 @app.route('/')
 def index():
@@ -61,7 +63,7 @@ def index():
 @app.route('/api/data')
 def get_data():
     if _cache['data'] is None:
-        return jsonify({'error': _cache['error'] or 'Cargando...'}), 503
+        return jsonify({'error': _cache['error'] or 'Sin datos'}), 503
     return jsonify(_cache['data'])
 
 @app.route('/api/status')
@@ -77,11 +79,6 @@ def status():
 def force_refresh():
     threading.Thread(target=download_json, daemon=True).start()
     return jsonify({'message': 'Actualizacion iniciada'})
-
-# Arrancar scheduler en hilo daemon
-_t = threading.Thread(target=scheduler, daemon=True)
-_t.start()
-log.info("Scheduler iniciado")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
