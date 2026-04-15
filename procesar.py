@@ -261,8 +261,13 @@ def procesar_viajes(file_bytes):
     gastos_disponibles = [c for c in COLS_GASTOS_VIAJE if c in df.columns]
     log(f"  → Columnas de gastos encontradas: {gastos_disponibles}")
 
+    # Columna Peso (kg)
+    col_peso = next((c for c in df.columns if c.strip().lower() == 'peso'), None)
+    log(f"     Peso:          {col_peso}")
+
     # Convertir numéricas
-    for col in [col_med_rec, col_med_sal, col_med_lleg] + gastos_disponibles:
+    cols_num = [col_med_rec, col_med_sal, col_med_lleg, col_peso] + gastos_disponibles
+    for col in cols_num:
         if col and col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
@@ -272,10 +277,10 @@ def procesar_viajes(file_bytes):
 
     for placa in placas:
         df_p = df[df['placa_viaje'] == placa]
-        for mes in df_p['mes'].dropna().unique():
+        for mes in sorted(df_p['mes'].dropna().unique()):
             df_pm = df_p[df_p['mes'] == mes].sort_values(col_fecha) if col_fecha else df_p
 
-            # 1. Km a cobrar = suma de Medición Recorrida
+            # 1. Km a cobrar = suma Medición Recorrida
             km_cobrar = float(df_pm[col_med_rec].sum()) if col_med_rec else 0
 
             # 2. Km reales = último Medición Llegada - primer Medición Salida
@@ -286,21 +291,34 @@ def procesar_viajes(file_bytes):
                 if len(ultimo_llegada) > 0 and len(primer_salida) > 0:
                     km_reales = float(ultimo_llegada.iloc[-1]) - float(primer_salida.iloc[0])
 
-            # 3. Gastos de viaje
-            gastos_viaje = sum(float(df_pm[c].sum()) for c in gastos_disponibles if c in df_pm.columns)
+            # 3. Gastos de viaje — total y desglose por concepto
+            gastos_viaje = 0
+            gastos_detalle = {}
+            for c in gastos_disponibles:
+                if c in df_pm.columns:
+                    val = float(df_pm[c].sum())
+                    if val > 0:
+                        gastos_detalle[c] = round(val, 0)
+                        gastos_viaje += val
 
-            # 4. CC
+            # 4. Peso total transportado (kg)
+            peso_kg = float(df_pm[col_peso].sum()) if col_peso else 0
+
+            # 5. CC
             cc = df_pm['cc_viaje'].iloc[0] if 'cc_viaje' in df_pm.columns else ''
 
-            viajes_records.append({
-                'placa':      placa,
-                'mes':        int(mes),
-                'cc':         cc,
-                'km_cobrar':  round(km_cobrar, 1),
-                'km_reales':  round(km_reales, 1),
-                'gastos_viaje': round(gastos_viaje, 0),
-                'num_viajes': int(len(df_pm)),
-            })
+            record = {
+                'placa':          placa,
+                'mes':            int(mes),
+                'cc':             cc,
+                'km_cobrar':      round(km_cobrar, 1),
+                'km_reales':      round(km_reales, 1),
+                'gastos_viaje':   round(gastos_viaje, 0),
+                'gastos_detalle': gastos_detalle,
+                'peso_kg':        round(peso_kg, 0),
+                'num_viajes':     int(len(df_pm)),
+            }
+            viajes_records.append(record)
 
     log(f"  → {len(viajes_records)} registros de viajes procesados")
     return viajes_records
