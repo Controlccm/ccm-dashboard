@@ -210,7 +210,7 @@ table.st td.active-col-cell.rl{background:var(--blue-l)!important}
 .vkc-bar-track{height:3px;background:var(--border);border-radius:2px;margin-top:8px}
 .vkc-bar-fill{height:3px;border-radius:2px;transition:width .4s}
 .viajes-mid{display:grid;grid-template-columns:220px 1fr;gap:14px;margin-bottom:14px}
-.viajes-table-wrap{overflow-x:auto;max-height:280px;overflow-y:auto}
+.viajes-table-wrap{overflow-x:auto;overflow-y:visible}
 .viajes-table-wrap::-webkit-scrollbar{width:4px;height:4px}.viajes-table-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 table.vt{border-collapse:collapse;font-size:10px;white-space:nowrap;width:100%}
 table.vt thead{position:sticky;top:0;z-index:2}
@@ -1678,7 +1678,7 @@ function renderViajesTabla(rows){
     const rowKey = r.placa+'|'+r.mes;
     const kmStyle   = r.cc==='PRAXAIR' ? 'color:#16a34a;font-weight:700' : r.cc==='CHILCO' ? 'color:#94a3b8' : 'color:#16a34a';
     const pesoStyle = r.cc==='CHILCO'  ? 'color:#7c3aed;font-weight:700' : r.cc==='PRAXAIR' ? 'color:#94a3b8' : 'color:#7c3aed';
-    html+=`<tr onclick="toggleViajesCascada('${rowKey}',${i})" style="cursor:pointer" id="vrow-${i}">`;
+    html+=`<tr onclick="toggleViajesCascada('${rowKey}',${i})" style="cursor:pointer" id="vtrow-${i}">`;
     html+=`<td class="rl">${r.placa}<span style="font-size:8px;margin-left:4px;color:var(--text3)">${r.cc||''}</span></td>`;
     html+=`<td>${MN2[r.mes]}</td>`;
     html+=`<td style="${kmStyle}">${Math.round(r.km_cobrar).toLocaleString()}</td>`;
@@ -1687,7 +1687,7 @@ function renderViajesTabla(rows){
     html+=`<td>${r.num_viajes}</td>`;
     html+=`<td style="color:#d97706">${fmt(r.gastos_viaje)}</td>`;
     html+='</tr>';
-    html+=`<tr id="vcasc-${i}" style="display:none"><td colspan="7" style="padding:0 8px 8px 24px;background:var(--bg)"><div class="viajesCasc" id="vcasc-body-${i}"></div></td></tr>`;
+    html+=`<tr id="vtrip-${i}" style="display:none"><td colspan="7" style="padding:0 8px 8px 24px;background:var(--bg)"><div class="viajesCasc" id="vtrip-body-${i}"></div></td></tr>`;
   });
 
   html+=`<tr class="tot-vrow">
@@ -1705,19 +1705,19 @@ function renderViajesTabla(rows){
 
 let _viajesCascActiva = null;
 function toggleViajesCascada(rowKey, idx){
-  const casc = document.getElementById('vcasc-'+idx);
+  const casc = document.getElementById('vtrip-'+idx);
   if(!casc) return;
   const isOpen = casc.style.display !== 'none';
 
   // Cerrar todas
-  document.querySelectorAll('[id^="vcasc-"]').forEach(el=>el.style.display='none');
-  document.querySelectorAll('[id^="vrow-"]').forEach(el=>el.style.background='');
+  document.querySelectorAll('[id^="vtrip-"]').forEach(el=>el.style.display='none');
+  document.querySelectorAll('[id^="vtrow-"]').forEach(el=>el.style.background='');
 
   if(isOpen) return;
 
   // Abrir esta
   casc.style.display='';
-  document.getElementById('vrow-'+idx).style.background='rgba(37,99,235,.05)';
+  document.getElementById('vtrow-'+idx).style.background='rgba(37,99,235,.05)';
 
   const item = window._viajesItems && window._viajesItems[idx];
   if(!item) return;
@@ -1766,7 +1766,7 @@ function toggleViajesCascada(rowKey, idx){
     <span style="font-size:9px;color:var(--text3)">Viajes: <b>${item.num_viajes||0}</b></span>
   </div>`;
 
-  document.getElementById('vcasc-body-'+idx).innerHTML = body;
+  document.getElementById('vtrip-body-'+idx).innerHTML = body;
 }
 
 function toggleVehViajes(p){
