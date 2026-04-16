@@ -487,6 +487,17 @@ table.vt tr.tot-vrow td{background:var(--blue-l)!important;color:var(--blue)!imp
   </div>
 </div>
 
+<!-- Panel lateral viajes -->
+<div class="cascade-overlay" id="viajes-overlay" onclick="closeViajesPanel(event)">
+  <div class="cascade-panel" id="viajes-panel">
+    <div class="cascade-head">
+      <div class="cascade-title" id="viajes-panel-title">Detalle viajes</div>
+      <div class="cascade-close" onclick="closeViajesPanel()">✕</div>
+    </div>
+    <div class="cascade-body" id="viajes-panel-body"></div>
+  </div>
+</div>
+
 </div>
 
 <script>
@@ -1691,9 +1702,7 @@ function renderViajesTabla(rows){
     html+=`<td style="color:#d97706">${fmt(r.gastos_viaje)}</td>`;
     html+=`<td style="color:var(--text3);font-size:10px" id="vtarrow-${i}">▶</td>`;
     html+='</tr>';
-    html+=`<tr id="vtrip-${i}" style="display:none"><td colspan="7" style="padding:0;background:#f8fafc">`;
-    html+=`<div id="vtrip-body-${i}" style="padding:8px 16px"></div>`;
-    html+=`</td></tr>`;
+
   });
 
   html+=`<tr class="tot-vrow">
@@ -1711,131 +1720,123 @@ function renderViajesTabla(rows){
 }
 
 function toggleViajesCascada(placa, idx){
-  const casc = document.getElementById('vtrip-'+idx);
-  if(!casc) return;
-  const isOpen = casc.style.display !== 'none';
-
-  // Cerrar todas
-  document.querySelectorAll('[id^="vtrip-"]').forEach(el=>el.style.display='none');
-  document.querySelectorAll('[id^="vtrow-"]').forEach(el=>{el.style.background='';});
+  // Resaltar fila seleccionada
+  document.querySelectorAll('[id^="vtrow-"]').forEach(el=>el.style.background='');
   document.querySelectorAll('[id^="vtarrow-"]').forEach(el=>el.textContent='▶');
-
-  if(isOpen) return;
-
-  // Abrir esta
-  casc.style.display='';
-  const row = document.getElementById('vtrow-'+idx);
-  if(row) row.style.background='rgba(37,99,235,.06)';
+  const row   = document.getElementById('vtrow-'+idx);
   const arrow = document.getElementById('vtarrow-'+idx);
+  if(row)   row.style.background='rgba(37,99,235,.06)';
   if(arrow) arrow.textContent='▼';
 
   const item = window._viajesPlacas && window._viajesPlacas[idx];
   if(!item) return;
 
-  const MN=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const MNL=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const kmSt  = item.cc==='PRAXAIR'?'color:#16a34a;font-weight:700':item.cc==='CHILCO'?'color:#94a3b8':'color:#16a34a';
-  const peSt  = item.cc==='CHILCO' ?'color:#7c3aed;font-weight:700':item.cc==='PRAXAIR'?'color:#94a3b8':'color:#7c3aed';
-  const ccLabel = item.cc==='PRAXAIR'?'PRAXAIR · factura por km':item.cc==='CHILCO'?'CHILCO · factura por peso':item.cc||'';
-
-  // ── Tabla de meses ──
-  const mesesOrden = Object.keys(item.meses).map(Number).sort((a,b)=>a-b);
-  let body = `<div style="padding:4px 0 8px">
-    <div style="font-size:9px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
-      ${item.placa} · ${ccLabel}
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:12px">
-      <thead><tr style="background:#f1f5f9">
-        <th style="padding:5px 10px;text-align:left;font-weight:600;color:var(--text2);border-bottom:1px solid #e2e8f0">Mes</th>
-        <th style="${kmSt};padding:5px 10px;text-align:right;border-bottom:1px solid #e2e8f0">Km cobrar</th>
-        <th style="color:#2563eb;padding:5px 10px;text-align:right;border-bottom:1px solid #e2e8f0">Km reales</th>
-        <th style="${peSt};padding:5px 10px;text-align:right;border-bottom:1px solid #e2e8f0">Peso kg</th>
-        <th style="padding:5px 10px;text-align:right;border-bottom:1px solid #e2e8f0">Viajes</th>
-        <th style="color:#d97706;padding:5px 10px;text-align:right;border-bottom:1px solid #e2e8f0">Gastos</th>
-      </tr></thead><tbody>`;
-
-  mesesOrden.forEach(m=>{
-    const d = item.meses[m];
-    body+=`<tr style="border-bottom:0.5px solid #f0f4f8;cursor:pointer" onclick="toggleMesGastos('${placa}',${m})">
-      <td style="padding:5px 10px;font-weight:600">${MNL[m]}</td>
-      <td style="${kmSt};padding:5px 10px;text-align:right">${Math.round(d.km_cobrar).toLocaleString()}</td>
-      <td style="color:#2563eb;padding:5px 10px;text-align:right">${Math.round(d.km_reales).toLocaleString()}</td>
-      <td style="${peSt};padding:5px 10px;text-align:right">${Math.round(d.peso_kg||0).toLocaleString()}</td>
-      <td style="padding:5px 10px;text-align:right">${d.num_viajes}</td>
-      <td style="color:#d97706;padding:5px 10px;text-align:right">${fmt(d.gastos_viaje)} <span style="font-size:9px;color:var(--text3)">▶</span></td>
-    </tr>
-    <tr id="mgastos-${placa}-${m}" style="display:none">
-      <td colspan="6" style="padding:0 10px 8px 20px;background:#f8fafc">
-        <div id="mgastos-body-${placa}-${m}"></div>
-      </td>
-    </tr>`;
-  });
-
-  // Fila total
-  body+=`<tr style="background:#f0f9ff;font-weight:700">
-    <td style="padding:5px 10px">TOTAL</td>
-    <td style="${kmSt};padding:5px 10px;text-align:right">${Math.round(item.km_cobrar).toLocaleString()}</td>
-    <td style="color:#2563eb;padding:5px 10px;text-align:right">${Math.round(item.km_reales).toLocaleString()}</td>
-    <td style="${peSt};padding:5px 10px;text-align:right">${Math.round(item.peso_kg||0).toLocaleString()}</td>
-    <td style="padding:5px 10px;text-align:right">${item.num_viajes}</td>
-    <td style="color:#d97706;padding:5px 10px;text-align:right">${fmt(item.gastos_viaje)}</td>
-  </tr></tbody></table></div>`;
-
-  document.getElementById('vtrip-body-'+idx).innerHTML = body;
-  // Guardar referencia para toggleMesGastos
+  // Guardar para uso posterior
   window._viajesPlacasMap = window._viajesPlacasMap || {};
   window._viajesPlacasMap[placa] = item;
+
+  const MNL=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const kmSt   = item.cc==='PRAXAIR'?'color:#16a34a;font-weight:700':item.cc==='CHILCO'?'color:#94a3b8':'color:#16a34a';
+  const peSt   = item.cc==='CHILCO' ?'color:#7c3aed;font-weight:700':item.cc==='PRAXAIR'?'color:#94a3b8':'color:#7c3aed';
+  const ccTag  = item.cc==='PRAXAIR'
+    ? '<span style="font-size:9px;padding:2px 8px;border-radius:10px;background:#dcfce7;color:#16a34a;font-weight:600">PRAXAIR · factura km</span>'
+    : item.cc==='CHILCO'
+    ? '<span style="font-size:9px;padding:2px 8px;border-radius:10px;background:#dbeafe;color:#2563eb;font-weight:600">CHILCO · factura peso</span>'
+    : '';
+
+  const mesesOrden = Object.keys(item.meses).map(Number).sort((a,b)=>a-b);
+
+  // ── KPIs resumen ──
+  let body = `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Km cobrar</div>
+      <div style="font-size:16px;font-weight:700;${kmSt}">${Math.round(item.km_cobrar).toLocaleString()}</div>
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Km reales</div>
+      <div style="font-size:16px;font-weight:700;color:#2563eb">${Math.round(item.km_reales).toLocaleString()}</div>
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Peso transportado</div>
+      <div style="font-size:16px;font-weight:700;${peSt}">${Math.round(item.peso_kg||0).toLocaleString()} kg</div>
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Gastos de viaje</div>
+      <div style="font-size:16px;font-weight:700;color:#d97706">${fmt(item.gastos_viaje)}</div>
+    </div>
+  </div>
+
+  <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
+    Desglose por mes
+  </div>`;
+
+  // ── Acordeón por mes ──
+  mesesOrden.forEach(m=>{
+    const d = item.meses[m];
+    const gSorted = Object.entries(d.gastos_detalle||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+    const totalG  = gSorted.reduce((s,[,v])=>s+v,0) || d.gastos_viaje || 0;
+    const maxG    = gSorted.length>0?gSorted[0][1]:1;
+
+    body+=`
+    <div style="border:0.5px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <div onclick="toggleMesPanel(this)" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:var(--surface)">
+        <span style="font-size:11px;font-weight:700;color:var(--text);min-width:60px">${MNL[m]}</span>
+        <span style="${kmSt};font-size:10px">${Math.round(d.km_cobrar).toLocaleString()} km</span>
+        <span style="${peSt};font-size:10px">${Math.round(d.peso_kg||0).toLocaleString()} kg</span>
+        <span style="color:#d97706;font-size:10px;font-weight:700;margin-left:auto">${fmt(d.gastos_viaje)}</span>
+        <span style="font-size:9px;color:var(--text3)">${d.num_viajes} viajes</span>
+        <span class="mes-arrow" style="font-size:9px;color:var(--text3);margin-left:4px">▶</span>
+      </div>
+      <div class="mes-detalle" style="display:none;padding:10px 14px;border-top:0.5px solid var(--border);background:var(--bg)">`;
+
+    if(gSorted.length===0){
+      body+='<div style="font-size:10px;color:var(--text3)">Sin detalle de gastos</div>';
+    } else {
+      gSorted.forEach(([key,val],gi)=>{
+        const pct    = Math.round(val/maxG*100);
+        const pctTot = totalG>0?((val/totalG)*100).toFixed(1):'0';
+        const color  = GASTOS_COLORS[gi%GASTOS_COLORS.length];
+        body+=`<div class="vcrow">
+          <span class="vcrow-label">${GASTOS_LABELS[key]||key}</span>
+          <div class="vcrow-bar"><div class="vcrow-fill" style="width:${pct}%;background:${color}"></div></div>
+          <span class="vcrow-pct">${pctTot}%</span>
+          <span class="vcrow-val">${fmt(val)}</span>
+        </div>`;
+      });
+      body+=`<div class="vcrow" style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">
+        <span class="vcrow-label" style="font-weight:700;color:var(--blue)">Total gastos</span>
+        <div class="vcrow-bar"></div><span class="vcrow-pct"></span>
+        <span class="vcrow-val" style="color:var(--blue);font-weight:700">${fmt(totalG)}</span>
+      </div>`;
+    }
+    body+=`</div></div>`;
+  });
+
+  // Abrir panel lateral
+  document.getElementById('viajes-panel-title').textContent = item.placa + ' · Detalle viajes';
+  document.getElementById('viajes-panel-body').innerHTML = body;
+  document.getElementById('viajes-overlay').classList.add('open');
 }
 
-function toggleMesGastos(placa, mes){
-  const rowId  = `mgastos-${placa}-${mes}`;
-  const bodyId = `mgastos-body-${placa}-${mes}`;
-  const row    = document.getElementById(rowId);
-  if(!row) return;
-  const isOpen = row.style.display !== 'none';
-
-  // Cerrar todos los meses de esta placa
-  const item = window._viajesPlacasMap && window._viajesPlacasMap[placa];
-  if(item){
-    Object.keys(item.meses).forEach(m=>{
-      const r = document.getElementById(`mgastos-${placa}-${m}`);
-      if(r) r.style.display='none';
-    });
+function toggleMesPanel(header){
+  const detalle = header.nextElementSibling;
+  const arrow   = header.querySelector('.mes-arrow');
+  const isOpen  = detalle.style.display !== 'none';
+  // Cerrar todos en el panel
+  document.querySelectorAll('.mes-detalle').forEach(el=>el.style.display='none');
+  document.querySelectorAll('.mes-arrow').forEach(el=>el.textContent='▶');
+  if(!isOpen){
+    detalle.style.display='block';
+    if(arrow) arrow.textContent='▼';
   }
-  if(isOpen) return;
+}
 
-  row.style.display='';
-  const d = item && item.meses[mes];
-  if(!d) return;
-
-  const gastos = d.gastos_detalle || {};
-  const sorted = Object.entries(gastos).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const totalG = sorted.reduce((s,[,v])=>s+v, 0) || d.gastos_viaje || 0;
-  const maxG   = sorted.length>0 ? sorted[0][1] : 1;
-  const MNL=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-  let body=`<div style="padding:6px 0;font-size:9px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Gastos · ${MNL[mes]}</div>`;
-  if(sorted.length===0){
-    body+='<div style="font-size:10px;color:var(--text3);padding:4px 0">Sin detalle disponible</div>';
-  } else {
-    sorted.forEach(([key,val],i)=>{
-      const pct    = Math.round(val/maxG*100);
-      const pctTot = totalG>0?((val/totalG)*100).toFixed(1):'0';
-      const color  = GASTOS_COLORS[i%GASTOS_COLORS.length];
-      body+=`<div class="vcrow">
-        <span class="vcrow-label">${GASTOS_LABELS[key]||key}</span>
-        <div class="vcrow-bar"><div class="vcrow-fill" style="width:${pct}%;background:${color}"></div></div>
-        <span class="vcrow-pct">${pctTot}%</span>
-        <span class="vcrow-val">${fmt(val)}</span>
-      </div>`;
-    });
-    body+=`<div class="vcrow" style="border-top:1px solid var(--border);margin-top:3px;padding-top:3px">
-      <span class="vcrow-label" style="font-weight:700;color:var(--blue)">Total</span>
-      <div class="vcrow-bar"></div><span class="vcrow-pct"></span>
-      <span class="vcrow-val" style="color:var(--blue);font-weight:700">${fmt(totalG)}</span>
-    </div>`;
-  }
-  document.getElementById(bodyId).innerHTML = body;
+function closeViajesPanel(event){
+  if(event && event.target !== document.getElementById('viajes-overlay')) return;
+  document.getElementById('viajes-overlay').classList.remove('open');
+  document.querySelectorAll('[id^="vtrow-"]').forEach(el=>el.style.background='');
+  document.querySelectorAll('[id^="vtarrow-"]').forEach(el=>el.textContent='▶');
 }
 
 function toggleVehViajes(p){
