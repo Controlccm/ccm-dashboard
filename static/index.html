@@ -294,6 +294,18 @@ table.vt tr.tot-vrow td{background:var(--blue-l)!important;color:var(--blue)!imp
       </div>
     </div>
 
+    <div style="margin-top:14px">
+      <input type="password" id="pwd-input"
+        placeholder="Contraseña de acceso"
+        style="width:100%;padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:14px;font-family:'Nunito',sans-serif;outline:none;transition:border .2s"
+        onkeydown="if(event.key==='Enter') login()"
+        onfocus="this.style.borderColor='#2563eb'"
+        onblur="this.style.borderColor='#e2e8f0'"
+      />
+      <div id="pwd-error" style="display:none;color:#dc2626;font-size:11px;margin-top:6px;font-weight:600">
+        ✕ Contraseña incorrecta
+      </div>
+    </div>
     <button class="login-cta" onclick="login()">Ingresar al Dashboard →</button>
   </div>
 </div>
@@ -638,10 +650,18 @@ function initMonths(){
 }
 
 function login(){
+  const pwd = document.getElementById('pwd-input').value.trim();
+  const errEl = document.getElementById('pwd-error');
+  if(pwd !== '805016737'){
+    errEl.style.display='block';
+    document.getElementById('pwd-input').style.borderColor='#dc2626';
+    document.getElementById('pwd-input').focus();
+    return;
+  }
+  errEl.style.display='none';
   document.getElementById('lo').style.display='none';
   document.getElementById('app').style.display='block';
   initMonths();
-  // Si no hay datos aún, mostrar loader y cargar
   if(RAW.length===0){
     document.getElementById('api-loader').style.display='flex';
     loadData().then(ok=>{ if(ok) render(); });
