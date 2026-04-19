@@ -202,7 +202,7 @@ table.st td.active-col-cell.rl{background:var(--blue-l)!important}
 
 
 /* ─── VIAJES ─── */
-.viajes-kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.viajes-kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
 .vkc{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:16px;border-left:4px solid var(--blue)}
 .vkc-label{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
 .vkc-val{font-size:22px;font-weight:800;color:var(--text);line-height:1;margin-bottom:3px}
@@ -1448,7 +1448,7 @@ function openCascade(placa, rubro, presupVal, realVal){
   if(Object.keys(merged).length>0){
     body += '<div class="cascade-section">';
     body += '<div class="cascade-sec-title">Desglose contable</div>';
-    body += buildTreeHTML(merged, totalReal, color, 0);
+    body += buildTreeHTML(merged, totalReal, color, 0, meses, placa, rubro);
     body += '</div>';
   } else {
     body += '<div style="font-size:12px;color:var(--text3);padding:24px 0;text-align:center">Sin movimientos para este período</div>';
@@ -1472,7 +1472,7 @@ function openCascade(placa, rubro, presupVal, realVal){
 }
 
 let _cascId = 0;
-function buildTreeHTML(nodes, totalRef, color, depth){
+function buildTreeHTML(nodes, totalRef, color, depth, meses, placa, rubro){
   let html = '';
   const sorted = Object.entries(nodes).sort((a,b)=>(b[1].v||0)-(a[1].v||0));
   sorted.forEach(([label, node])=>{
@@ -1512,7 +1512,38 @@ function buildTreeHTML(nodes, totalRef, color, depth){
     if(!isLeaf){
       html += '<div id="'+id+'" style="display:none">';
       if(hasChildren){
-        html += buildTreeHTML(node.c, val, color, depth+1);
+        html += buildTreeHTML(node.c, val, color, depth+1, meses, placa, rubro);
+      }
+      // Tabla de variación por mes (siempre en nodos hoja)
+      if(meses && placa && rubro){
+        const MNL2=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        let mesHtml = '<div style="padding:4px '+(indent+22)+'px 6px;background:var(--bg)">' +
+          '<table style="width:100%;border-collapse:collapse;font-size:9px">' +
+          '<thead><tr style="background:#f1f5f9">' +
+          '<th style="padding:3px 8px;text-align:left;color:var(--text3);font-weight:600">Mes</th>' +
+          '<th style="padding:3px 8px;text-align:right;color:var(--text3);font-weight:600">Valor</th>' +
+          '<th style="padding:3px 8px;text-align:right;color:var(--text3);font-weight:600">% del total</th>' +
+          '</tr></thead><tbody>';
+        let hayDatos = false;
+        const totalMes = node.v||0;
+        meses.forEach(m=>{
+          const key2 = placa+'|'+m+'|'+rubro;
+          const treeM = TREE[key2];
+          if(!treeM) return;
+          // Buscar el valor del nodo actual en el árbol de ese mes
+          // usando el path del label actual
+          const valMes = getNodeValByLabel(treeM, label);
+          if(valMes===null) return;
+          hayDatos = true;
+          const pctM = totalMes>0?((valMes/totalMes)*100).toFixed(1):'0';
+          mesHtml += '<tr style="border-bottom:0.5px solid #f0f4f8">' +
+            '<td style="padding:3px 8px;font-weight:600;color:var(--text)">'+MNL2[m]+'</td>' +
+            '<td style="padding:3px 8px;text-align:right;font-weight:700;color:'+color+'">'+fmt(valMes)+'</td>' +
+            '<td style="padding:3px 8px;text-align:right;color:var(--text3)">'+pctM+'%</td>' +
+            '</tr>';
+        });
+        mesHtml += '</tbody></table></div>';
+        if(hayDatos) html += mesHtml;
       }
       if(hasNotes){
         node.n.forEach(nota=>{
@@ -1544,6 +1575,18 @@ function mergeTree(target, source){
       target[k].n = target[k].n.concat(node.n);
     }
   });
+}
+
+// Busca el valor de un nodo por su label en cualquier nivel del árbol
+function getNodeValByLabel(tree, targetLabel){
+  for(const [k, node] of Object.entries(tree)){
+    if(k === targetLabel) return node.v||0;
+    if(node.c){
+      const found = getNodeValByLabel(node.c, targetLabel);
+      if(found !== null) return found;
+    }
+  }
+  return null;
 }
 
 function kpiMini(label, color, val){
@@ -1612,12 +1655,16 @@ function renderViajes(){
   const kmColor   = ccFilt==='CHILCO'  ? '#94a3b8' : '#16a34a';
   const pesoColor = ccFilt==='PRAXAIR' ? '#94a3b8' : '#7c3aed';
 
+  const difKm      = totKmCobrar - totKmReales;
+  const difKmColor = '#64748b';
+
   const kpis = [
-    {label:'Km a cobrar'+kmTag,   val:Math.round(totKmCobrar).toLocaleString(), sub:'Suma Medición Recorrida', pct:100, color:kmColor},
-    {label:'Km reales',           val:Math.round(totKmReales).toLocaleString(), sub:`${pctKm}% vs km cobrar`,  pct:parseFloat(pctKm), color:'#2563eb'},
-    {label:'Peso transportado'+pesoTag, val:Math.round(totPesoKg).toLocaleString()+' kg', sub:'Suma columna Peso', pct:Math.min(totPesoKg/Math.max(totKmCobrar,1)*10,100), color:pesoColor},
-    {label:'Gastos de viaje',     val:fmt(totGastos), sub:'10 conceptos sumados', pct:Math.min(totGastos/(Math.max(totKmCobrar,1))*100,100), color:'#d97706'},
-    {label:'Total viajes',        val:totViajes.toLocaleString(), sub:'PRAXAIR + CHILCO', pct:75, color:'#0891b2'},
+    {label:'Km a cobrar'+kmTag,        val:Math.round(totKmCobrar).toLocaleString(),  sub:'Suma Medición Recorrida', pct:100, color:kmColor},
+    {label:'Km reales',                val:Math.round(totKmReales).toLocaleString(),  sub:`${pctKm}% vs km cobrar`,  pct:parseFloat(pctKm), color:'#2563eb'},
+    {label:'Diferencia km',            val:Math.round(Math.abs(difKm)).toLocaleString(), sub:'Cobrar menos Reales',   pct:Math.min(Math.abs(difKm)/Math.max(totKmCobrar,1)*100,100), color:difKmColor},
+    {label:'Peso transportado'+pesoTag,val:Math.round(totPesoKg).toLocaleString()+' kg', sub:'Suma columna Peso',    pct:Math.min(totPesoKg/Math.max(totKmCobrar,1)*10,100), color:pesoColor},
+    {label:'Gastos de viaje',          val:fmt(totGastos), sub:'10 conceptos sumados', pct:Math.min(totGastos/(Math.max(totKmCobrar,1))*100,100), color:'#d97706'},
+    {label:'Total viajes',             val:totViajes.toLocaleString(), sub:'PRAXAIR + CHILCO', pct:75, color:'#0891b2'},
   ];
 
   document.getElementById('viajes-kpis').innerHTML = kpis.map(k=>`
@@ -1767,8 +1814,9 @@ function toggleViajesCascada(placa, idx){
   const mesesOrden = Object.keys(item.meses).map(Number).sort((a,b)=>a-b);
 
   // ── KPIs resumen ──
+  const difKmVeh = (item.km_cobrar||0) - (item.km_reales||0);
   let body = `
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
     <div style="background:var(--bg);border-radius:8px;padding:10px">
       <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Km cobrar</div>
       <div style="font-size:16px;font-weight:700;${kmSt}">${Math.round(item.km_cobrar).toLocaleString()}</div>
@@ -1778,12 +1826,20 @@ function toggleViajesCascada(placa, idx){
       <div style="font-size:16px;font-weight:700;color:#2563eb">${Math.round(item.km_reales).toLocaleString()}</div>
     </div>
     <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Diferencia km</div>
+      <div style="font-size:16px;font-weight:700;color:#64748b">${Math.round(Math.abs(difKmVeh)).toLocaleString()}</div>
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
       <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Peso transportado</div>
       <div style="font-size:16px;font-weight:700;${peSt}">${Math.round(item.peso_kg||0).toLocaleString()} kg</div>
     </div>
     <div style="background:var(--bg);border-radius:8px;padding:10px">
       <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Gastos de viaje</div>
       <div style="font-size:16px;font-weight:700;color:#d97706">${fmt(item.gastos_viaje)}</div>
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:9px;color:var(--text3);margin-bottom:3px">Total viajes</div>
+      <div style="font-size:16px;font-weight:700;color:#0891b2">${item.num_viajes||0}</div>
     </div>
   </div>
 
@@ -1803,6 +1859,7 @@ function toggleViajesCascada(placa, idx){
       <div onclick="toggleMesPanel(this)" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:var(--surface)">
         <span style="font-size:11px;font-weight:700;color:var(--text);min-width:60px">${MNL[m]}</span>
         <span style="${kmSt};font-size:10px">${Math.round(d.km_cobrar).toLocaleString()} km</span>
+        <span style="color:#64748b;font-size:10px">dif: ${Math.round(Math.abs((d.km_cobrar||0)-(d.km_reales||0))).toLocaleString()}</span>
         <span style="${peSt};font-size:10px">${Math.round(d.peso_kg||0).toLocaleString()} kg</span>
         <span style="color:#d97706;font-size:10px;font-weight:700;margin-left:auto">${fmt(d.gastos_viaje)}</span>
         <span style="font-size:9px;color:var(--text3)">${d.num_viajes} viajes</span>
