@@ -1476,13 +1476,19 @@ function buildTreeHTML(nodes, totalRef, color, depth, meses, placa, rubro){
   let html = '';
   const sorted = Object.entries(nodes).sort((a,b)=>(b[1].v||0)-(a[1].v||0));
   sorted.forEach(([label, node])=>{
-    const val = node.v||0;
-    const pct = totalRef>0?((val/totalRef)*100).toFixed(1):'0';
-    const hasChildren = node.c && Object.keys(node.c).length>0;
-    const hasNotes    = node.n && node.n.length>0;
-    const id = 'ci'+(++_cascId);
-    const indent = depth*12;
-    const isLeaf = !hasChildren && !hasNotes;
+    const val        = node.v||0;
+    const pct        = totalRef>0?((val/totalRef)*100).toFixed(1):'0';
+    const hasChildren= node.c && Object.keys(node.c).length>0;
+    const hasNotes   = node.n && node.n.length>0;
+    const id         = 'ci'+(++_cascId);
+    const indent     = depth*12;
+    // Penúltimo = tiene hijos pero esos hijos son hojas (sin nietos)
+    const childrenAreLeaves = hasChildren && Object.values(node.c).every(ch=>
+      (!ch.c || Object.keys(ch.c).length===0) && (!ch.n || ch.n.length===0)
+    );
+    // Nodo que muestra meses: tiene hijos hoja O tiene notas pero sin hijos
+    const showMeses  = meses && placa && rubro && (childrenAreLeaves || (!hasChildren && hasNotes));
+    const isLeaf     = !hasChildren && !hasNotes;
 
     html += '<div style="border-bottom:0.5px solid var(--border)">';
 
@@ -1491,72 +1497,102 @@ function buildTreeHTML(nodes, totalRef, color, depth, meses, placa, rubro){
       (isLeaf?'':' data-target="'+id+'"') +
       ' style="display:flex;align-items:center;gap:8px;padding:7px 4px 7px '+indent+'px;cursor:'+(isLeaf?'default':'pointer')+'">';
 
-    // Flecha o punto
     if(!isLeaf){
       html += '<span class="casc-arrow" style="font-size:9px;color:var(--text3);width:10px;flex-shrink:0">▶</span>';
     } else {
       html += '<span style="width:10px;flex-shrink:0;font-size:8px;color:var(--text3)">·</span>';
     }
 
-    html += '<span style="font-size:10px;color:var(--text);flex:1">' + label + '</span>';
-
-    // Barra mini
+    html += '<span style="font-size:10px;color:var(--text);flex:1">'+label+'</span>';
     html += '<div style="width:60px;height:4px;background:var(--border);border-radius:2px;flex-shrink:0">' +
       '<div style="height:4px;border-radius:2px;background:'+color+'99;width:'+Math.min(parseFloat(pct),100)+'%"></div></div>';
-
     html += '<span style="font-size:9px;color:var(--text3);min-width:28px;text-align:right">'+pct+'%</span>';
     html += '<span style="font-size:10px;font-weight:700;color:var(--text);min-width:72px;text-align:right">'+fmt(val)+'</span>';
     html += '</div>';
 
-    // Contenido expandible
     if(!isLeaf){
       html += '<div id="'+id+'" style="display:none">';
-      if(hasChildren){
-        html += buildTreeHTML(node.c, val, color, depth+1, meses, placa, rubro);
-      }
-      // Tabla de variación por mes (siempre en nodos hoja)
-      if(meses && placa && rubro){
+
+      if(showMeses){
+        // ── Acordeón de meses ──
         const MNL2=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-        let mesHtml = '<div style="padding:4px '+(indent+22)+'px 6px;background:var(--bg)">' +
-          '<table style="width:100%;border-collapse:collapse;font-size:9px">' +
-          '<thead><tr style="background:#f1f5f9">' +
-          '<th style="padding:3px 8px;text-align:left;color:var(--text3);font-weight:600">Mes</th>' +
-          '<th style="padding:3px 8px;text-align:right;color:var(--text3);font-weight:600">Valor</th>' +
-          '<th style="padding:3px 8px;text-align:right;color:var(--text3);font-weight:600">% del total</th>' +
-          '</tr></thead><tbody>';
-        let hayDatos = false;
+        const MNL3=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
         const totalMes = node.v||0;
         meses.forEach(m=>{
           const key2 = placa+'|'+m+'|'+rubro;
           const treeM = TREE[key2];
           if(!treeM) return;
-          // Buscar el valor del nodo actual en el árbol de ese mes
-          // usando el path del label actual
           const valMes = getNodeValByLabel(treeM, label);
-          if(valMes===null) return;
-          hayDatos = true;
-          const pctM = totalMes>0?((valMes/totalMes)*100).toFixed(1):'0';
-          mesHtml += '<tr style="border-bottom:0.5px solid #f0f4f8">' +
-            '<td style="padding:3px 8px;font-weight:600;color:var(--text)">'+MNL2[m]+'</td>' +
-            '<td style="padding:3px 8px;text-align:right;font-weight:700;color:'+color+'">'+fmt(valMes)+'</td>' +
-            '<td style="padding:3px 8px;text-align:right;color:var(--text3)">'+pctM+'%</td>' +
-            '</tr>';
+          if(valMes===null || valMes===0) return;
+          const pctM   = totalMes>0?((valMes/totalMes)*100).toFixed(1):'0';
+          const mesId  = 'cm'+(++_cascId);
+
+          // Fila mes — clickable para expandir detalle
+          html += '<div style="border-bottom:0.5px solid var(--border)">';
+          html += '<div class="casc-toggle" data-target="'+mesId+'" style="display:flex;align-items:center;gap:8px;padding:6px 4px 6px '+(indent+22)+'px;cursor:pointer;background:var(--bg)">';
+          html += '<span class="casc-arrow" style="font-size:9px;color:var(--text3);width:10px;flex-shrink:0">▶</span>';
+          html += '<span style="font-size:10px;font-weight:700;color:var(--text);min-width:32px">'+MNL2[m]+'</span>';
+          html += '<div style="flex:1;height:3px;background:var(--border);border-radius:2px;max-width:80px">' +
+            '<div style="height:3px;border-radius:2px;background:'+color+';width:'+Math.min(parseFloat(pctM),100)+'%"></div></div>';
+          html += '<span style="font-size:9px;color:var(--text3);min-width:28px;text-align:right">'+pctM+'%</span>';
+          html += '<span style="font-size:10px;font-weight:700;color:'+color+';min-width:72px;text-align:right">'+fmt(valMes)+'</span>';
+          html += '</div>';
+
+          // Detalle del mes (hijos o notas de ese mes específico)
+          html += '<div id="'+mesId+'" style="display:none">';
+          // Buscar nodo exacto en el árbol de ese mes para obtener sus hijos/notas
+          const nodeDelMes = getNodeByLabel(treeM, label);
+          if(nodeDelMes){
+            if(nodeDelMes.c && Object.keys(nodeDelMes.c).length>0){
+              // Mostrar hijos (terceros) del mes
+              Object.entries(nodeDelMes.c)
+                .sort((a,b)=>(b[1].v||0)-(a[1].v||0))
+                .forEach(([childLabel, childNode])=>{
+                  const cv = childNode.v||0;
+                  html += '<div style="display:flex;align-items:flex-start;gap:6px;padding:5px 4px 5px '+(indent+34)+'px;background:#f8fafc;border-bottom:0.5px solid var(--border)">';
+                  html += '<span style="width:10px;flex-shrink:0;font-size:8px;color:var(--text3)">·</span>';
+                  html += '<span style="font-size:9px;color:var(--text2);flex:1;line-height:1.4">'+childLabel+'</span>';
+                  html += '<span style="font-size:9px;font-weight:600;color:var(--text);flex-shrink:0">'+fmt(cv)+'</span>';
+                  html += '</div>';
+                  // Notas del hijo
+                  if(childNode.n) childNode.n.forEach(nota=>{
+                    html += '<div style="display:flex;align-items:flex-start;gap:6px;padding:4px 4px 4px '+(indent+46)+'px;background:#f8fafc;border-bottom:0.5px solid var(--border)">';
+                    html += '<span style="font-size:9px;color:var(--text3);flex-shrink:0">📝</span>';
+                    html += '<span style="font-size:9px;color:var(--text2);flex:1;line-height:1.3">'+nota.t+'</span>';
+                    html += '<span style="font-size:9px;font-weight:600;color:var(--text);flex-shrink:0">'+fmt(nota.v)+'</span>';
+                    html += '</div>';
+                  });
+                });
+            }
+            if(nodeDelMes.n) nodeDelMes.n.forEach(nota=>{
+              html += '<div style="display:flex;align-items:flex-start;gap:6px;padding:5px 4px 5px '+(indent+34)+'px;background:#f8fafc;border-bottom:0.5px solid var(--border)">';
+              html += '<span style="font-size:9px;color:var(--text3);flex-shrink:0;margin-top:1px">📝</span>';
+              html += '<span style="font-size:9px;color:var(--text2);flex:1;line-height:1.4">'+nota.t+'</span>';
+              html += '<span style="font-size:9px;font-weight:600;color:var(--text);flex-shrink:0">'+fmt(nota.v)+'</span>';
+              html += '</div>';
+            });
+          }
+          html += '</div></div>';
         });
-        mesHtml += '</tbody></table></div>';
-        if(hayDatos) html += mesHtml;
+
+      } else {
+        // Nodo intermedio — seguir bajando normalmente
+        if(hasChildren){
+          html += buildTreeHTML(node.c, val, color, depth+1, meses, placa, rubro);
+        }
+        if(hasNotes){
+          node.n.forEach(nota=>{
+            html += '<div style="display:flex;align-items:flex-start;gap:6px;padding:5px 4px 5px '+(indent+22)+'px;background:var(--bg);border-bottom:0.5px solid var(--border)">' +
+              '<span style="font-size:9px;color:var(--text3);flex-shrink:0;margin-top:1px">📝</span>' +
+              '<span style="font-size:9px;color:var(--text2);flex:1;line-height:1.4">'+nota.t+'</span>' +
+              '<span style="font-size:9px;font-weight:600;color:var(--text);flex-shrink:0">'+fmt(nota.v)+'</span>' +
+              '</div>';
+          });
+        }
       }
-      if(hasNotes){
-        node.n.forEach(nota=>{
-          html += '<div style="display:flex;align-items:flex-start;gap:6px;padding:5px 4px 5px '+(indent+22)+'px;background:var(--bg);border-bottom:0.5px solid var(--border)">' +
-            '<span style="font-size:9px;color:var(--text3);flex-shrink:0;margin-top:1px">📝</span>' +
-            '<span style="font-size:9px;color:var(--text2);flex:1;line-height:1.4">' + nota.t + '</span>' +
-            '<span style="font-size:9px;font-weight:600;color:var(--text);flex-shrink:0">' + fmt(nota.v) + '</span>' +
-            '</div>';
-        });
-      }
+
       html += '</div>';
     }
-
     html += '</div>';
   });
   return html;
@@ -1577,13 +1613,25 @@ function mergeTree(target, source){
   });
 }
 
-// Busca el valor de un nodo por su label en cualquier nivel del árbol
+// Busca el valor de un nodo por su label
 function getNodeValByLabel(tree, targetLabel){
   for(const [k, node] of Object.entries(tree)){
     if(k === targetLabel) return node.v||0;
     if(node.c){
       const found = getNodeValByLabel(node.c, targetLabel);
       if(found !== null) return found;
+    }
+  }
+  return null;
+}
+
+// Devuelve el nodo completo (con hijos y notas) por su label
+function getNodeByLabel(tree, targetLabel){
+  for(const [k, node] of Object.entries(tree)){
+    if(k === targetLabel) return node;
+    if(node.c){
+      const found = getNodeByLabel(node.c, targetLabel);
+      if(found) return found;
     }
   }
   return null;
